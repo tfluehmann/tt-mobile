@@ -367,6 +367,11 @@ function club(id) {
   });
 }
 
+// The row set is shared with the live request as well as the columns. The
+// columns break loudly when upstream moves them; a row selector breaks
+// silently by matching nothing, so it is the half that has to be shared.
+const TEAM_ROWS = "#content-row1 table.result-set tr:has(td:nth-child(2) a)";
+
 const TEAM_COLUMNS = {
   name: "td:nth-child(1)",
   league: "td:nth-child(2)",
@@ -383,8 +388,9 @@ const parseClubTeams = (html) =>
     const teams = [];
     osmosis
       .parse(html)
-      .find("#content-row1 table.result-set tr:has(td:nth-child(2) a)")
+      .find(TEAM_ROWS)
       .set(TEAM_COLUMNS)
+      .error(error("parse error in parseClubTeams"))
       .data((row) => teams.push(simplifyLinks(row)))
       .done(() => res({ teams }));
   });
@@ -402,7 +408,7 @@ function clubTeams(id) {
       .set({
         title: "#content-row1 h1",
         teams: osmosis
-          .find("#content-row1 table.result-set tr:has(td:nth-child(2) a)")
+          .find(TEAM_ROWS)
           .set(TEAM_COLUMNS),
       })
       .error(error("scraping error in /clubTeams, continuing anyway"))

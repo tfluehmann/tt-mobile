@@ -207,11 +207,12 @@ test("parseClubTeams keeps the captain", async (t) => {
   );
   const { teams } = await scraper.parseClubTeams(html);
 
-  // The captain is scraped and was never shown. This pins the column so a
-  // change upstream fails here rather than emptying the page quietly.
+  // Pins which column each field is read from, against a saved page. That
+  // catches an edit to TEAM_COLUMNS here; it cannot catch click-tt moving
+  // the column, because the fixture does not move with it.
   t.ok(teams.length > 0);
   t.equal(teams[0].captain, "Muster, Anna");
-  t.ok(teams[0].name);
-  t.ok(teams[0].league);
+  t.equal(teams[0].name, "Herren");
+  t.ok(teams[0].league.startsWith("Herren"), "league, not the rank column");
   t.end();
 });

@@ -114,7 +114,7 @@ const Teams = ({ name, teams }) => (
         <tr>
           <th>Team</th>
           <th>Liga</th>
-          <th class="optional-3">Captain</th>
+          <th class="optional-3">Kapitän</th>
           <th class="center optional">Rang</th>
           <th class="center optional-2">Punkte</th>
           <th />
