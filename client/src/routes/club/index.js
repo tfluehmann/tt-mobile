@@ -21,10 +21,11 @@ export default
 @wire("model", {
   club: ["api.club", "id"],
   clubTeams: ["api.clubTeams", "id"],
+  licences: ["api.clubLicences", "id"],
 })
 class Club extends Component {
-  render({ pending, rejected, back, club, clubTeams, id }) {
-    if (pending && Object.keys(pending).length >= 2)
+  render({ pending, rejected, back, club, clubTeams, licences, id }) {
+    if (pending && Object.keys(pending).length >= 3)
       return <LoadingPage back={back} />;
     if (rejected && Object.keys(rejected).length > 0)
       return <ErrorPage info={rejected} />;
@@ -49,6 +50,11 @@ class Club extends Component {
               <Schedule chunks={club && club.nextMatches} />
               <Embed param="club-id" url={id} />
             </div>
+          )}
+          {pending && pending.licences ? (
+            <Loading />
+          ) : (
+            <Roster players={licences && licences.players} />
           )}
         </Container>
         <Footer />
@@ -92,6 +98,40 @@ const ClubProfile = ({ profile }) => {
           ) : null}
         </div>
       ))}
+    </div>
+  );
+};
+
+const Roster = ({ players }) => {
+  if (!players || players.length === 0) return null;
+
+  return (
+    <div>
+      <h2>Lizenzierte Spieler</h2>
+      <Table>
+        <thead>
+          <tr>
+            <th class="center">Klass.</th>
+            <th>Name</th>
+            <th class="optional">Serie</th>
+            <th class="center optional-2">Nat.</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {players.map((player) => (
+            <LinkRow key={player.href} href={clientHref(player.href)}>
+              <td class="center">{player.classification}</td>
+              <td>{player.name}</td>
+              <td class="optional">{player.series}</td>
+              <td class="center optional-2">{player.nationality}</td>
+              <td class="thin">
+                <i class="icon-right-open" />
+              </td>
+            </LinkRow>
+          ))}
+        </tbody>
+      </Table>
     </div>
   );
 };

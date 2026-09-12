@@ -94,6 +94,14 @@ app.get("/club-teams/:id", async ({ params }, res) => {
   }
 });
 
+app.get("/club-licences/:id", async ({ params }, res) => {
+  try {
+    res.json(await scraper.clubLicenceMembers(params.id));
+  } catch (e) {
+    console.error(e);
+  }
+});
+
 app.get("/search/:term", async ({ params }, res) => {
   try {
     res.json({data: await scraper.search(params.term)});

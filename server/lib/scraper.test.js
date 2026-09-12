@@ -216,3 +216,32 @@ test("parseClubTeams keeps the captain", async (t) => {
   t.ok(teams[0].league.startsWith("Herren"), "league, not the rank column");
   t.end();
 });
+
+test("parseLicenceMembers reads the club roster", async (t) => {
+  const html = fs.readFileSync(
+    path.join(__dirname, "fixtures", "club-licences.html"),
+    "utf8",
+  );
+  const { players } = await scraper.parseLicenceMembers(html);
+
+  t.equal(players.length, 5);
+  t.equal(players[0].classification, "A19");
+  t.equal(players[0].name, "Muster, Anna");
+  t.equal(players[0].series, "Aktive");
+  t.equal(players[0].nationality, "GER");
+  t.ok(players[0].href.startsWith("/playerPortrait"));
+  t.end();
+});
+
+test("parseLicenceMembers leaves the licence number out", async (t) => {
+  const html = fs.readFileSync(
+    path.join(__dirname, "fixtures", "club-licences.html"),
+    "utf8",
+  );
+  const { players } = await scraper.parseLicenceMembers(html);
+
+  // The number identifies a person and adds nothing to browsing a roster,
+  // so it is deliberately not carried over from the page.
+  t.notok(JSON.stringify(players).includes("600001"));
+  t.end();
+});
