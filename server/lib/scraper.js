@@ -444,6 +444,94 @@ function clubLicenceMembers(id) {
   });
 }
 
+// Upstream publishes each ranking for the first half of the season, the
+// second half, or both combined.
+const ROUNDS = ["vorrunde", "rueckrunde", "gesamt"];
+
+// The two ranking tables are not the same shape: the singles table carries
+// an empty column between the team and the balance, the doubles table does
+// not. Reading one with the other's offsets empties both score columns
+// without failing, so the offsets live with the type.
+const RANKING_TYPES = {
+  singles: { ratingType: "topRatingTotal", balance: 5, diff: 6 },
+  doubles: { ratingType: "topRatingsDouble", balance: 4, diff: 5 },
+};
+
+const rankingColumns = ({ balance, diff }) => ({
+  rank: "td:nth-child(1)",
+  name: "td:nth-child(2)",
+  href: "td:nth-child(2) a@href",
+  team: "td:nth-child(3)",
+  balance: `td:nth-child(${balance})`,
+  diff: `td:nth-child(${diff})`,
+});
+
+// A ranking lives on a different endpoint than the group page but is
+// addressed by the same championship and group, so those are lifted off
+// whatever league URL the client already holds.
+const groupPortraitUrl = (url, ratingType, displayTyp) => {
+  const { query } = parse(url, true);
+  const params = new URLSearchParams({
+    site: "GroupPortraitPage",
+    displayTyp,
+    type: ratingType,
+    championship: query.championship ?? "",
+    group: query.group ?? "",
+  });
+  return resolve(
+    host,
+    `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/groupPortrait?${params}`,
+  );
+};
+
+// Both tables put their headings in ordinary rows, so a row only counts as
+// a player once its rank is a number.
+const isRankedRow = (row) => /^\d+$/.test((row.rank ?? "").trim());
+
+// Split from the request so the offsets above can be tested against saved
+// pages rather than whatever click-tt is serving today.
+const parseGroupRanking = (html, type) =>
+  new Promise((res) => {
+    const players = [];
+    osmosis
+      .parse(html)
+      .find("table.result-set tr")
+      .set(rankingColumns(RANKING_TYPES[type]))
+      .data((row) => {
+        if (isRankedRow(row)) players.push(simplifyLinks(row));
+      })
+      .done(() => res({ players }));
+  });
+
+function groupRanking({ url, type = "singles", displayTyp = "gesamt" }) {
+  const ranking = RANKING_TYPES[type];
+  if (!ranking) {
+    return Promise.reject(
+      new Error(
+        `unknown ranking type "${type}", expected one of ${Object.keys(RANKING_TYPES)}`,
+      ),
+    );
+  }
+  if (!ROUNDS.includes(displayTyp)) {
+    return Promise.reject(
+      new Error(`unknown round "${displayTyp}", expected one of ${ROUNDS}`),
+    );
+  }
+
+  return new Promise((res) => {
+    const players = [];
+    osmosis
+      .get(groupPortraitUrl(url, ranking.ratingType, displayTyp))
+      .find("#content table.result-set tr")
+      .set(rankingColumns(ranking))
+      .error(error("scraping error in /groupRanking, continuing anyway"))
+      .data((row) => {
+        if (isRankedRow(row)) players.push(simplifyLinks(row));
+      })
+      .done(() => res({ type, displayTyp, players }));
+  });
+}
+
 function clubTeams(id) {
   return new Promise((res, rej) => {
     osmosis
@@ -988,6 +1076,9 @@ module.exports = {
   team,
   club,
   clubTeams,
+  groupRanking,
+  groupPortraitUrl,
+  parseGroupRanking,
   parseClubTeams,
   clubLicenceMembers,
   parseLicenceMembers,

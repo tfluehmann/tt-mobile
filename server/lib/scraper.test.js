@@ -254,3 +254,59 @@ test("parseLicenceMembers leaves the licence number out", async (t) => {
   );
   t.end();
 });
+
+test("groupPortraitUrl carries the championship and group over", (t) => {
+  // Express hands us the url already decoded, so "26/27" arrives with a
+  // real slash and has to be re-encoded.
+  const url =
+    "/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/groupPage?championship=NWTTV 26/27&group=219333";
+  const built = scraper.groupPortraitUrl(url, "topRatingTotal", "gesamt");
+
+  t.ok(built.includes("championship=NWTTV+26%2F27"));
+  t.ok(built.includes("group=219333"));
+  t.ok(built.includes("type=topRatingTotal"));
+  t.ok(built.includes("displayTyp=gesamt"));
+  t.end();
+});
+
+test("parseGroupRanking reads the singles table", async (t) => {
+  const { players } = await scraper.parseGroupRanking(
+    fixture("group-ranking-singles.html").html,
+    "singles",
+  );
+
+  t.ok(players.length > 0);
+  t.equal(players[0].rank, "1");
+  t.ok(players[0].team, "has a team");
+  t.match(players[0].balance, /^\d+:\d+$/, "balance looks like a W:L score");
+  t.match(players[0].diff, /^[+-]?\d+$/, "diff looks like a signed number");
+  t.end();
+});
+
+test("parseGroupRanking reads the doubles table, which has one column fewer", async (t) => {
+  // The singles table carries an empty column between team and balance and
+  // the doubles table does not. Reading doubles with the singles offsets
+  // silently empties both score columns.
+  const { players } = await scraper.parseGroupRanking(
+    fixture("group-ranking-doubles.html").html,
+    "doubles",
+  );
+
+  t.ok(players.length > 0);
+  t.equal(players[0].rank, "1");
+  t.match(players[0].balance, /^\d+:\d+$/, "balance looks like a W:L score");
+  t.match(players[0].diff, /^[+-]?\d+$/, "diff looks like a signed number");
+  t.end();
+});
+
+test("parseGroupRanking drops the header rows", async (t) => {
+  const { players } = await scraper.parseGroupRanking(
+    fixture("group-ranking-singles.html").html,
+    "singles",
+  );
+
+  // "Top" and "Top-Bilanzen" are table headings, not players.
+  t.notok(players.some((p) => p.rank === "Top"));
+  t.ok(players.every((p) => /^\d+$/.test(p.rank)));
+  t.end();
+});

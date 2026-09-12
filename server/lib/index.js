@@ -102,6 +102,20 @@ app.get("/club-licences/:id", async ({ params }, res, next) => {
   }
 });
 
+app.get("/group-ranking", async ({ query }, res, next) => {
+  try {
+    res.json(
+      await scraper.groupRanking({
+        url: join("/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/", query.url),
+        type: query.type,
+        displayTyp: query.displayTyp,
+      }),
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
 app.get("/search/:term", async ({ params }, res) => {
   try {
     res.json({data: await scraper.search(params.term)});
