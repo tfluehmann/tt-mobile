@@ -274,7 +274,9 @@ const headingBlock = (html, heading) =>
 // so it is taken as HTML and picked apart here rather than addressed with
 // selectors.
 const parseClubProfile = (html) => {
-  if (!html) return null;
+  // An element that exists but holds only whitespace is still a string, so
+  // the emptiness has to be checked rather than the presence.
+  if (!html || !html.trim()) return null;
 
   const text = stripTags(html);
   const contact = headingBlock(html, "Kontaktadresse");
@@ -283,9 +285,12 @@ const parseClubProfile = (html) => {
   ].map(([, name, body]) => ({
     name: stripTags(name),
     address: textLines(body).filter((line) => line !== "Routenplaner"),
-    directions: body.match(
-      /href="(https:\/\/www\.google\.com\/maps[^"]*)"/,
-    )?.[1],
+    // The href is read out of the markup, so its entities are still
+    // encoded. Preact escapes what it renders, and an "&amp;" left in here
+    // reaches the browser as "&amp;amp;" and breaks the destination.
+    directions: body
+      .match(/href="(https:\/\/www\.google\.com\/maps[^"]*)"/)?.[1]
+      ?.replace(/&amp;/g, "&"),
   }));
 
   return {
@@ -303,12 +308,18 @@ function club(id) {
       .get(
         resolve(
           host,
-          `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubInfoDisplay?club=${id}`,
+          // Without preferredLanguage click-tt answers in English, so the
+          // headings this page is parsed by would read "Contact Address"
+          // and "Matchlocation 1" instead. The app is German; asking for
+          // German keeps the page and the parser in step.
+          `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubInfoDisplay?club=${id}&preferredLanguage=German`,
         ),
       )
       .find("#content")
       .set({
-        profileHtml: "#content-row1:html",
+        // The club header is in row 2. Row 1 exists on this page but is
+        // empty, and reads as ten characters of whitespace.
+        profileHtml: "#content-row2:html",
         lastMatches: osmosis
           .find(
             "//table[@class='result-set'][count(preceding-sibling::*[1][self::h2][contains(.,'Rückschau')]) > 0]//tr",

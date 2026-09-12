@@ -169,6 +169,10 @@ test("parseClubProfile reads the club header", (t) => {
   t.equal(profile.venues.length, 1);
   t.equal(profile.venues[0].name, "Spiellokal 1");
   t.ok(profile.venues[0].directions.startsWith("https://www.google.com/maps"));
+  // Entities must be decoded here: Preact escapes what it renders, so an
+  // "&amp;" surviving this far reaches the browser as "&amp;amp;".
+  t.notok(profile.venues[0].directions.includes("&amp;"));
+  t.ok(profile.venues[0].directions.includes("&destination="));
   t.end();
 });
 
@@ -185,5 +189,13 @@ test("parseClubProfile leaves the obfuscated email alone", (t) => {
 test("parseClubProfile survives a header it cannot read", (t) => {
   t.equal(scraper.parseClubProfile(undefined), null);
   t.deepEqual(scraper.parseClubProfile("<div></div>").venues, []);
+  t.end();
+});
+
+test("parseClubProfile treats a whitespace-only element as absent", (t) => {
+  // #content-row1 exists on the club page and holds ten characters of
+  // whitespace. A truthy check alone would let that render an empty heading.
+  t.equal(scraper.parseClubProfile("\n\t    \n\t  "), null);
+  t.equal(scraper.parseClubProfile("   "), null);
   t.end();
 });
