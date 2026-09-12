@@ -199,3 +199,19 @@ test("parseClubProfile treats a whitespace-only element as absent", (t) => {
   t.equal(scraper.parseClubProfile("   "), null);
   t.end();
 });
+
+test("parseClubTeams keeps the captain", async (t) => {
+  const html = fs.readFileSync(
+    path.join(__dirname, "fixtures", "club-teams.html"),
+    "utf8",
+  );
+  const { teams } = await scraper.parseClubTeams(html);
+
+  // The captain is scraped and was never shown. This pins the column so a
+  // change upstream fails here rather than emptying the page quietly.
+  t.ok(teams.length > 0);
+  t.equal(teams[0].captain, "Muster, Anna");
+  t.ok(teams[0].name);
+  t.ok(teams[0].league);
+  t.end();
+});

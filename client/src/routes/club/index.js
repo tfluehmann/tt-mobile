@@ -114,6 +114,7 @@ const Teams = ({ name, teams }) => (
         <tr>
           <th>Team</th>
           <th>Liga</th>
+          <th class="optional-3">Captain</th>
           <th class="center optional">Rang</th>
           <th class="center optional-2">Punkte</th>
           <th />
@@ -124,6 +125,7 @@ const Teams = ({ name, teams }) => (
           <LinkRow key={team.href} href={clientHref(team.href)}>
             <td>{team.name}</td>
             <td>{team.league}</td>
+            <td class="optional-3">{team.captain}</td>
             <td class="center optional">{team.rank}</td>
             <td class="center optional-2">{team.points}</td>
             <td class="thin">
