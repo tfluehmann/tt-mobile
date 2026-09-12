@@ -230,6 +230,9 @@ test("parseLicenceMembers reads the club roster", async (t) => {
   t.equal(players[0].series, "Aktive");
   t.equal(players[0].nationality, "GER");
   t.ok(players[0].href.startsWith("/playerPortrait"));
+  // Each row links to its own portrait; one shared href would mean the
+  // column is being read from the wrong place.
+  t.equal(new Set(players.map((p) => p.href)).size, players.length);
   t.end();
 });
 
@@ -240,8 +243,14 @@ test("parseLicenceMembers leaves the licence number out", async (t) => {
   );
   const { players } = await scraper.parseLicenceMembers(html);
 
-  // The number identifies a person and adds nothing to browsing a roster,
-  // so it is deliberately not carried over from the page.
-  t.notok(JSON.stringify(players).includes("600001"));
+  // A number identifying a person adds nothing to browsing a roster, so the
+  // column is not carried over. This asserts the shape rather than the
+  // absence of one string, so it cannot pass on an empty result.
+  t.ok(players.length > 0, "there are players to check");
+  t.deepEqual(
+    Object.keys(players[0]).sort(),
+    ["classification", "href", "name", "nationality", "series"],
+    "these fields and no others",
+  );
   t.end();
 });

@@ -397,6 +397,12 @@ const parseClubTeams = (html) =>
 
 // The licence number is in this table upstream and is deliberately not
 // listed here: it identifies a person and adds nothing to browsing a roster.
+// The row set and the columns are both shared by the live request and the
+// parser. The columns break loudly when upstream moves them — a wrong value
+// fails a test. The row selector breaks silently: it simply matches nothing,
+// so it is the half that has to be shared, not the half that looks fragile.
+const LICENCE_ROWS = "#content table.result-set tr:has(td:nth-child(2) a)";
+
 const LICENCE_COLUMNS = {
   classification: "td:nth-child(1)",
   name: "td:nth-child(2)",
@@ -412,8 +418,9 @@ const parseLicenceMembers = (html) =>
     const players = [];
     osmosis
       .parse(html)
-      .find("table.result-set tr:has(td:nth-child(2) a)")
+      .find(LICENCE_ROWS)
       .set(LICENCE_COLUMNS)
+      .error(error("parse error in parseLicenceMembers"))
       .data((row) => players.push(simplifyLinks(row)))
       .done(() => res({ players }));
   });
@@ -429,7 +436,7 @@ function clubLicenceMembers(id) {
           `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubLicenceMembersPage?club=${id}`,
         ),
       )
-      .find("#content table.result-set tr:has(td:nth-child(2) a)")
+      .find(LICENCE_ROWS)
       .set(LICENCE_COLUMNS)
       .error(error("scraping error in /clubLicenceMembers, continuing anyway"))
       .data((row) => players.push(simplifyLinks(row)))

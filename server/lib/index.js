@@ -94,11 +94,11 @@ app.get("/club-teams/:id", async ({ params }, res) => {
   }
 });
 
-app.get("/club-licences/:id", async ({ params }, res) => {
+app.get("/club-licences/:id", async ({ params }, res, next) => {
   try {
     res.json(await scraper.clubLicenceMembers(params.id));
   } catch (e) {
-    console.error(e);
+    next(e);
   }
 });
 
