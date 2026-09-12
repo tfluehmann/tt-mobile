@@ -42,6 +42,7 @@ class Club extends Component {
             <Loading />
           ) : (
             <div>
+              <ClubProfile profile={club && club.profile} />
               <h2>Spielplan (Rückschau)</h2>
               <Schedule chunks={club && club.lastMatches} />
               <h2>Spielplan (Vorschau)</h2>
@@ -55,6 +56,45 @@ class Club extends Component {
     );
   }
 }
+
+const ClubProfile = ({ profile }) => {
+  if (!profile) return null;
+  const { address, website, founded, venues } = profile;
+
+  return (
+    <div class="mb-5">
+      <h2>Verein</h2>
+      {address.map((line) => (
+        <div key={line}>{line}</div>
+      ))}
+      {website ? (
+        <div>
+          <a href={website} target="_blank" rel="noopener noreferrer">
+            {website.replace(/^https?:\/\//, "")}
+          </a>
+        </div>
+      ) : null}
+      {founded ? <div class="has-text-grey">Gegründet {founded}</div> : null}
+      {venues.map((venue) => (
+        <div key={venue.name} class="mt-3">
+          <strong>{venue.name}</strong>
+          {venue.address.map((line) => (
+            <div key={line}>{line}</div>
+          ))}
+          {venue.directions ? (
+            <a
+              href={venue.directions}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Routenplaner
+            </a>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const Teams = ({ name, teams }) => (
   <div>
