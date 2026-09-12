@@ -484,24 +484,51 @@ const groupPortraitUrl = (url, ratingType, displayTyp) => {
   );
 };
 
-// Both tables put their headings in ordinary rows, so a row only counts as
-// a player once its rank is a number.
-const isRankedRow = (row) => /^\d+$/.test((row.rank ?? "").trim());
+// The row set is shared with the live request below. The columns break
+// loudly when upstream moves them; a row selector breaks silently by
+// matching nothing, so it is the half that has to be shared.
+const RANKING_ROWS = "#content table.result-set tr";
+
+// Both tables put their headings in ordinary rows, so a player has to be
+// told apart by content. A balance is the marker: every player has one and
+// no heading does. Rank cannot serve — see carryRank.
+const isPlayerRow = (row) => /^\d+:\d+$/.test((row.balance ?? "").trim());
+
+// Upstream numbers only the first row of an equal-ranked block and leaves
+// the rest blank, so a tied player arrives with no rank of their own. The
+// blank is a non-breaking space, which trim() removes, so it cannot be
+// distinguished from a missing cell — the last rank seen is carried down
+// instead. Ties are ordinary in these tables, not an edge case.
+const carryRank = () => {
+  let current = "";
+  return (row) => {
+    const rank = (row.rank ?? "").trim();
+    if (rank) current = rank;
+    return { ...row, rank: current };
+  };
+};
+
+const collectPlayers = (chain) =>
+  new Promise((res) => {
+    const rows = [];
+    chain
+      .data((row) => {
+        if (isPlayerRow(row)) rows.push(simplifyLinks(row));
+      })
+      .done(() => res(rows.map(carryRank())));
+  });
 
 // Split from the request so the offsets above can be tested against saved
 // pages rather than whatever click-tt is serving today.
-const parseGroupRanking = (html, type) =>
-  new Promise((res) => {
-    const players = [];
+const parseGroupRanking = async (html, type) => ({
+  players: await collectPlayers(
     osmosis
       .parse(html)
-      .find("table.result-set tr")
+      .find(RANKING_ROWS)
       .set(rankingColumns(RANKING_TYPES[type]))
-      .data((row) => {
-        if (isRankedRow(row)) players.push(simplifyLinks(row));
-      })
-      .done(() => res({ players }));
-  });
+      .error(error("parse error in parseGroupRanking")),
+  ),
+});
 
 function groupRanking({ url, type = "singles", displayTyp = "gesamt" }) {
   const ranking = RANKING_TYPES[type];
@@ -518,18 +545,13 @@ function groupRanking({ url, type = "singles", displayTyp = "gesamt" }) {
     );
   }
 
-  return new Promise((res) => {
-    const players = [];
+  return collectPlayers(
     osmosis
       .get(groupPortraitUrl(url, ranking.ratingType, displayTyp))
-      .find("#content table.result-set tr")
+      .find(RANKING_ROWS)
       .set(rankingColumns(ranking))
-      .error(error("scraping error in /groupRanking, continuing anyway"))
-      .data((row) => {
-        if (isRankedRow(row)) players.push(simplifyLinks(row));
-      })
-      .done(() => res({ type, displayTyp, players }));
-  });
+      .error(error("scraping error in /groupRanking, continuing anyway")),
+  ).then((players) => ({ type, displayTyp, players }));
 }
 
 function clubTeams(id) {

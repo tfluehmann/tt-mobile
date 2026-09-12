@@ -299,13 +299,37 @@ test("parseGroupRanking reads the doubles table, which has one column fewer", as
   t.end();
 });
 
+test("parseGroupRanking keeps players who share a rank", async (t) => {
+  // Upstream numbers only the first row of an equal-ranked block and blanks
+  // the rest with a non-breaking space. Filtering on a numeric rank threw
+  // those rows away, and ties are ordinary in these tables.
+  const { players } = await scraper.parseGroupRanking(
+    fixture("group-ranking-singles.html").html,
+    "singles",
+  );
+
+  t.equal(players.length, 3, "every player row survives, tied or not");
+  t.deepEqual(
+    players.map((p) => p.rank),
+    ["1", "1", "1"],
+    "a tied row carries the rank of the block it belongs to",
+  );
+  t.ok(
+    players.every((p) => /^\d+:\d+$/.test(p.balance)),
+    "every row kept has a balance",
+  );
+  t.end();
+});
+
 test("parseGroupRanking drops the header rows", async (t) => {
   const { players } = await scraper.parseGroupRanking(
     fixture("group-ranking-singles.html").html,
     "singles",
   );
 
-  // "Top" and "Top-Bilanzen" are table headings, not players.
+  // "Top" and "Top-Bilanzen" are table headings, not players. They are
+  // excluded by having no balance, not by their rank.
+  t.notok(players.some((p) => p.name === "Name, Vorname"));
   t.notok(players.some((p) => p.rank === "Top"));
   t.ok(players.every((p) => /^\d+$/.test(p.rank)));
   t.end();
