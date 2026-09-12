@@ -1,6 +1,16 @@
 const test = require("tape");
 const moment = require("moment");
+const fs = require("fs");
+const path = require("path");
 const scraper = require("./scraper");
+
+// These pages are saved copies of the current season. click-tt requires a
+// login for personal content from earlier seasons, so the archived URLs
+// these tests used to fetch no longer carry the data they assert on --
+// see docs/analysis/failing-tests-rca.md. Names in them are invented.
+const fixture = (name) => ({
+  html: fs.readFileSync(path.join(__dirname, "fixtures", name), "utf8"),
+});
 
 // helpers
 function isClass(str) {
@@ -56,10 +66,7 @@ test("arrayify", (t) => {
 });
 
 test("player response", async (t) => {
-  const player = await scraper.player({
-    url:
-      "/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/playerPortrait?federation=STT&person=1714709&club=33123",
-  });
+  const player = await scraper.player(fixture("player-portrait.html"));
   t.ok(isClass(player.classification), "classification");
   t.equal(typeof player.title, "string", "title");
   t.equal(typeof player.balances[0].team, "string", "balance:team");
@@ -83,10 +90,7 @@ test("player response", async (t) => {
 
 test("elo response", async (t) => {
   const start = Date.now();
-  const elo = await scraper.elo({
-    url:
-      "/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/eloFilter?federation=STT&rankingDate=20.06.2021&ranking=359849949",
-  });
+  const elo = await scraper.elo(fixture("elo-filter.html"));
   console.log("elo request ", Date.now() - start);
   t.equal(typeof elo.data[0], "number", "elo");
   t.equal(typeof elo.start, "number", "elostart");
@@ -96,10 +100,7 @@ test("elo response", async (t) => {
 });
 
 test("short player response", async (t) => {
-  const player = await scraper.me({
-    url:
-      "/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/playerPortrait?federation=STT&person=1714709&club=33123",
-  });
+  const player = await scraper.me(fixture("player-portrait.html"));
   t.ok(isClass(player.classification), "classification");
   t.equal(typeof player.title, "string", "title");
   t.equal(typeof player.balance[0].team, "string", "balance:team");
@@ -114,10 +115,7 @@ test("short player response", async (t) => {
 
 test("game", async (t) => {
   // Royal Bern
-  const response = await scraper.game({
-    url:
-      "/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/groupMeetingReport?meeting=6456522&championship=MTTV+21%2F22&group=208325",
-  });
+  const response = await scraper.game(fixture("group-meeting-report.html"));
   t.equal(typeof response.title, "string");
   t.equal(typeof response.summary.game, "string");
   t.equal(typeof response.summary.sets, "string");
@@ -126,10 +124,7 @@ test("game", async (t) => {
 
 test("typical league", async (t) => {
   // MTTV 2. Liga Gruppe 1
-  const response = await scraper.league({
-    url:
-      "/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/groupPage?championship=MTTV+21%2F22&group=208325",
-  });
+  const response = await scraper.league(fixture("group-page.html"));
   t.equal(typeof response.title, "string");
   t.equal(typeof response.clubs[0].name, "string");
   t.ok(isUrl(response.clubs[0].href));
@@ -154,8 +149,6 @@ test.skip("limited league", async (t) => {
 
 test("team", async t => {
   // Royal Bern 1. Herren
-  const response = await scraper.team({
-    url: "/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/teamPortrait?teamtable=1690784&championship=MTTV+22%2F23&group=210386"
-  })
+  const response = await scraper.team(fixture("team-portrait.html"))
   t.equal(typeof response.breadcrumbs[1].name, "string");
 })
