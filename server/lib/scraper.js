@@ -395,6 +395,55 @@ const parseClubTeams = (html) =>
       .done(() => res({ teams }));
   });
 
+// The licence number is in this table upstream and is deliberately not
+// listed here: it identifies a person and adds nothing to browsing a roster.
+// The row set and the columns are both shared by the live request and the
+// parser. The columns break loudly when upstream moves them — a wrong value
+// fails a test. The row selector breaks silently: it simply matches nothing,
+// so it is the half that has to be shared, not the half that looks fragile.
+const LICENCE_ROWS = "#content table.result-set tr:has(td:nth-child(2) a)";
+
+const LICENCE_COLUMNS = {
+  classification: "td:nth-child(1)",
+  name: "td:nth-child(2)",
+  href: "td:nth-child(2) a@href",
+  series: "td:nth-child(4)",
+  nationality: "td:nth-child(5)",
+};
+
+// Split from the request so the selectors above can be tested against a
+// saved page instead of whatever click-tt is serving today.
+const parseLicenceMembers = (html) =>
+  new Promise((res) => {
+    const players = [];
+    osmosis
+      .parse(html)
+      .find(LICENCE_ROWS)
+      .set(LICENCE_COLUMNS)
+      .error(error("parse error in parseLicenceMembers"))
+      .data((row) => players.push(simplifyLinks(row)))
+      .done(() => res({ players }));
+  });
+
+// The federation's roster of licensed players for one club.
+function clubLicenceMembers(id) {
+  return new Promise((res) => {
+    const players = [];
+    osmosis
+      .get(
+        resolve(
+          host,
+          `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubLicenceMembersPage?club=${id}`,
+        ),
+      )
+      .find(LICENCE_ROWS)
+      .set(LICENCE_COLUMNS)
+      .error(error("scraping error in /clubLicenceMembers, continuing anyway"))
+      .data((row) => players.push(simplifyLinks(row)))
+      .done(() => res({ players }));
+  });
+}
+
 function clubTeams(id) {
   return new Promise((res, rej) => {
     osmosis
@@ -940,6 +989,8 @@ module.exports = {
   club,
   clubTeams,
   parseClubTeams,
+  clubLicenceMembers,
+  parseLicenceMembers,
   game,
   player,
   elo,

@@ -216,3 +216,41 @@ test("parseClubTeams keeps the captain", async (t) => {
   t.ok(teams[0].league.startsWith("Herren"), "league, not the rank column");
   t.end();
 });
+
+test("parseLicenceMembers reads the club roster", async (t) => {
+  const html = fs.readFileSync(
+    path.join(__dirname, "fixtures", "club-licences.html"),
+    "utf8",
+  );
+  const { players } = await scraper.parseLicenceMembers(html);
+
+  t.equal(players.length, 5);
+  t.equal(players[0].classification, "A19");
+  t.equal(players[0].name, "Muster, Anna");
+  t.equal(players[0].series, "Aktive");
+  t.equal(players[0].nationality, "GER");
+  t.ok(players[0].href.startsWith("/playerPortrait"));
+  // Each row links to its own portrait; one shared href would mean the
+  // column is being read from the wrong place.
+  t.equal(new Set(players.map((p) => p.href)).size, players.length);
+  t.end();
+});
+
+test("parseLicenceMembers leaves the licence number out", async (t) => {
+  const html = fs.readFileSync(
+    path.join(__dirname, "fixtures", "club-licences.html"),
+    "utf8",
+  );
+  const { players } = await scraper.parseLicenceMembers(html);
+
+  // A number identifying a person adds nothing to browsing a roster, so the
+  // column is not carried over. This asserts the shape rather than the
+  // absence of one string, so it cannot pass on an empty result.
+  t.ok(players.length > 0, "there are players to check");
+  t.deepEqual(
+    Object.keys(players[0]).sort(),
+    ["classification", "href", "name", "nationality", "series"],
+    "these fields and no others",
+  );
+  t.end();
+});
