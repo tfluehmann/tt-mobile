@@ -135,6 +135,16 @@ function assoc({ url }) {
   });
 }
 
+// Where a scrape reads from. Production always passes a url; the tests pass
+// a saved page instead, so the selectors they exercise are the selectors
+// that ship rather than a second copy of them.
+//
+// click-tt requires a login for personal content from earlier seasons, so
+// the pages these tests used to fetch no longer carry the data they assert
+// on. See docs/analysis/failing-tests-rca.md.
+const sourceFor = ({ url, html }) =>
+  html ? osmosis.parse(html) : osmosis.get(resolve(host, url));
+
 const findBreadcrumbs = (osmosis) =>
   osmosis.find("#breadcrumb a").set("name").set({
     href: "@href",
@@ -143,10 +153,9 @@ const findBreadcrumbs = (osmosis) =>
 const extractBreadcrumbs = ({ breadcrumbs }) =>
   toArray(breadcrumbs).map(simplifyLinks).slice(2);
 
-function league({ url }) {
+function league(query) {
   return new Promise((res, rej) => {
-    osmosis
-      .get(resolve(host, url))
+    sourceFor(query)
       .set({
         breadcrumbs: findBreadcrumbs(osmosis),
       })
@@ -331,10 +340,10 @@ function clubTeams(id) {
   });
 }
 
-function team({ url, format }, expressRes) {
+function team(query, expressRes) {
+  const { format } = query;
   return new Promise((res, rej) => {
-    osmosis
-      .get(resolve(host, url))
+    sourceFor(query)
       .set({
         breadcrumbs: findBreadcrumbs(osmosis),
       })
@@ -448,10 +457,9 @@ const trimPlayers = R.over(
   R.map(R.over(player1Lens, R.toUpper())),
 );
 
-function game({ url }) {
+function game(query) {
   return new Promise((res, rej) => {
-    osmosis
-      .get(resolve(host, url))
+    sourceFor(query)
       .set({
         breadcrumbs: findBreadcrumbs(osmosis),
       })
@@ -504,10 +512,9 @@ function game({ url }) {
   });
 }
 
-function player({ url }) {
+function player(query) {
   return new Promise((res, rej) => {
-    osmosis
-      .get(resolve(host, url))
+    sourceFor(query)
       .set({
         breadcrumbs: findBreadcrumbs(osmosis),
       })
@@ -597,10 +604,9 @@ function player({ url }) {
   });
 }
 
-function elo({ url }) {
+function elo(query) {
   return new Promise((res, rej) => {
-    osmosis
-      .get(resolve(host, url))
+    sourceFor(query)
       .find("#content")
       .set({
         playerHref: "ul.content-tabs > li:last-child a@href",
@@ -656,10 +662,9 @@ function eloDiff(eloA, eloB, won = true) {
   return won ? 15 * (1 - pToWin) : -15 * pToWin;
 }
 
-function me({ url }) {
+function me(query) {
   return new Promise((res, rej) => {
-    osmosis
-      .get(resolve(host, url))
+    sourceFor(query)
       .set({
         breadcrumbs: findBreadcrumbs(osmosis),
       })
