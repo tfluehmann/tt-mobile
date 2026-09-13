@@ -14,7 +14,7 @@ function unique(arr) {
     (entry, index, self) =>
       self.findIndex((t) => {
         return t.data === entry.data && t.team === entry.team;
-      }) === index,
+      }) === index
   );
 }
 
@@ -164,7 +164,7 @@ function league(query) {
         title: "#content-col1 h1",
         clubs: osmosis
           .find(
-            'h2:contains("Tabelle"):last ~ table.result-set:first tr:not(:first-child)',
+            'h2:contains("Tabelle"):last ~ table.result-set:first tr:not(:first-child)'
           )
           .set({
             promotion: "td:nth-child(1) img@title",
@@ -178,7 +178,7 @@ function league(query) {
           }),
         games: osmosis
           .find(
-            'h2:contains("Spielplan") ~ table.result-set:first tr:not(:first-child)',
+            'h2:contains("Spielplan") ~ table.result-set:first tr:not(:first-child)'
           )
           .set({
             date: "td:nth-child(2)",
@@ -261,7 +261,7 @@ const textLines = (html) =>
 // link list, or the end of the column.
 const headingBlock = (html, heading) =>
   html.match(
-    new RegExp(`<h2>\\s*${heading}[^<]*</h2>([\\s\\S]*?)(?=<h2|<ul|$)`, "i"),
+    new RegExp(`<h2>\\s*${heading}[^<]*</h2>([\\s\\S]*?)(?=<h2|<ul|$)`, "i")
   )?.[1] ?? "";
 
 // Club address, venues and founding year from the page header.
@@ -312,8 +312,8 @@ function club(id) {
           // headings this page is parsed by would read "Contact Address"
           // and "Matchlocation 1" instead. The app is German; asking for
           // German keeps the page and the parser in step.
-          `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubInfoDisplay?club=${id}&preferredLanguage=German`,
-        ),
+          `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubInfoDisplay?club=${id}&preferredLanguage=German`
+        )
       )
       .find("#content")
       .set({
@@ -322,7 +322,7 @@ function club(id) {
         profileHtml: "#content-row2:html",
         lastMatches: osmosis
           .find(
-            "//table[@class='result-set'][count(preceding-sibling::*[1][self::h2][contains(.,'Rückschau')]) > 0]//tr",
+            "//table[@class='result-set'][count(preceding-sibling::*[1][self::h2][contains(.,'Rückschau')]) > 0]//tr"
           )
           .set({
             date: "td:nth-child(2)",
@@ -335,7 +335,7 @@ function club(id) {
           }),
         nextMatches: osmosis
           .find(
-            "//table[@class='result-set'][count(preceding-sibling::*[1][self::h2][contains(.,'Vorschau')]) > 0]//tr",
+            "//table[@class='result-set'][count(preceding-sibling::*[1][self::h2][contains(.,'Vorschau')]) > 0]//tr"
           )
           .set({
             date: "td:nth-child(2)",
@@ -353,12 +353,12 @@ function club(id) {
             toArray(data.lastMatches)
               .filter((m) => m.time)
               .map(simplifyLinks)
-              .map(extractTime),
+              .map(extractTime)
           ),
           nextMatches: asChunks(
             toArray(data.nextMatches)
               .filter((m) => !m.result && m.time)
-              .map(extractTime),
+              .map(extractTime)
           ),
           // deprecated
           chunks: asChunks(arrayify(data.lastMatches).map(simplifyLinks)),
@@ -383,18 +383,6 @@ const TEAM_COLUMNS = {
 
 // Split from the request so the columns above can be tested against a saved
 // page rather than whatever click-tt is serving today.
-const parseClubTeams = (html) =>
-  new Promise((res) => {
-    const teams = [];
-    osmosis
-      .parse(html)
-      .find(TEAM_ROWS)
-      .set(TEAM_COLUMNS)
-      .error(error("parse error in parseClubTeams"))
-      .data((row) => teams.push(simplifyLinks(row)))
-      .done(() => res({ teams }));
-  });
-
 // The licence number is in this table upstream and is deliberately not
 // listed here: it identifies a person and adds nothing to browsing a roster.
 // The row set and the columns are both shared by the live request and the
@@ -413,29 +401,14 @@ const LICENCE_COLUMNS = {
 
 // Split from the request so the selectors above can be tested against a
 // saved page instead of whatever click-tt is serving today.
-const parseLicenceMembers = (html) =>
-  new Promise((res) => {
-    const players = [];
-    osmosis
-      .parse(html)
-      .find(LICENCE_ROWS)
-      .set(LICENCE_COLUMNS)
-      .error(error("parse error in parseLicenceMembers"))
-      .data((row) => players.push(simplifyLinks(row)))
-      .done(() => res({ players }));
-  });
-
 // The federation's roster of licensed players for one club.
-function clubLicenceMembers(id) {
+function clubLicenceMembers({ id, html }) {
   return new Promise((res) => {
     const players = [];
-    osmosis
-      .get(
-        resolve(
-          host,
-          `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubLicenceMembersPage?club=${id}`,
-        ),
-      )
+    sourceFor({
+      html,
+      url: `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubLicenceMembersPage?club=${id}`,
+    })
       .find(LICENCE_ROWS)
       .set(LICENCE_COLUMNS)
       .error(error("scraping error in /clubLicenceMembers, continuing anyway"))
@@ -444,30 +417,135 @@ function clubLicenceMembers(id) {
   });
 }
 
-function clubTeams(id) {
-  return new Promise((res, rej) => {
-    osmosis
-      .get(
-        resolve(
-          host,
-          `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubTeams?club=${id}`,
-        ),
+// Upstream publishes each ranking for the first half of the season, the
+// second half, or both combined.
+const ROUNDS = ["vorrunde", "rueckrunde", "gesamt"];
+
+// The two ranking tables are not the same shape: the singles table carries
+// an empty column between the team and the balance, the doubles table does
+// not. Reading one with the other's offsets empties both score columns
+// without failing, so the offsets live with the type.
+const RANKING_TYPES = {
+  singles: { ratingType: "topRatingTotal", balance: 5, diff: 6 },
+  doubles: { ratingType: "topRatingsDouble", balance: 4, diff: 5 },
+};
+
+const rankingColumns = ({ balance, diff }) => ({
+  rank: "td:nth-child(1)",
+  name: "td:nth-child(2)",
+  href: "td:nth-child(2) a@href",
+  team: "td:nth-child(3)",
+  balance: `td:nth-child(${balance})`,
+  diff: `td:nth-child(${diff})`,
+});
+
+// A ranking lives on a different endpoint than the group page but is
+// addressed by the same championship and group, so those are lifted off
+// whatever league URL the client already holds.
+const groupPortraitUrl = (url, ratingType, displayTyp) => {
+  const { query } = parse(url, true);
+  const params = new URLSearchParams({
+    site: "GroupPortraitPage",
+    displayTyp,
+    type: ratingType,
+    championship: query.championship ?? "",
+    group: query.group ?? "",
+  });
+  return resolve(
+    host,
+    `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/groupPortrait?${params}`
+  );
+};
+
+// The row set is shared with the live request below. The columns break
+// loudly when upstream moves them; a row selector breaks silently by
+// matching nothing, so it is the half that has to be shared.
+const RANKING_ROWS = "#content table.result-set tr";
+
+// Both tables put their headings in ordinary rows, so a player has to be
+// told apart by content. A balance is the marker: every player has one and
+// no heading does. Rank cannot serve — see carryRank.
+const isPlayerRow = (row) => /^\d+:\d+$/.test((row.balance ?? "").trim());
+
+// Upstream numbers only the first row of an equal-ranked block and leaves
+// the rest blank, so a tied player arrives with no rank of their own. The
+// blank is a non-breaking space, which trim() removes, so it cannot be
+// distinguished from a missing cell — the last rank seen is carried down
+// instead. Ties are ordinary in these tables, not an edge case.
+const carryRank = () => {
+  let current = "";
+  return (row) => {
+    const rank = (row.rank ?? "").trim();
+    if (rank) current = rank;
+    return { ...row, rank: current };
+  };
+};
+
+const collectPlayers = (chain) =>
+  new Promise((res) => {
+    const rows = [];
+    chain
+      .data((row) => {
+        if (isPlayerRow(row)) rows.push(simplifyLinks(row));
+      })
+      .done(() => res(rows.map(carryRank())));
+  });
+
+// Split from the request so the offsets above can be tested against saved
+// pages rather than whatever click-tt is serving today.
+function groupRanking({ url, html, type = "singles", displayTyp = "gesamt" }) {
+  const ranking = RANKING_TYPES[type];
+  if (!ranking) {
+    return Promise.reject(
+      new Error(
+        `unknown ranking type "${type}", expected one of ${Object.keys(
+          RANKING_TYPES
+        )}`
       )
+    );
+  }
+  if (!ROUNDS.includes(displayTyp)) {
+    return Promise.reject(
+      new Error(`unknown round "${displayTyp}", expected one of ${ROUNDS}`)
+    );
+  }
+
+  return collectPlayers(
+    sourceFor({
+      html,
+      url: html
+        ? undefined
+        : groupPortraitUrl(url, ranking.ratingType, displayTyp),
+    })
+      .find(RANKING_ROWS)
+      .set(rankingColumns(ranking))
+      .error(error("scraping error in /groupRanking, continuing anyway"))
+  ).then((players) => ({ type, displayTyp, players }));
+}
+
+function clubTeams({ id, html }) {
+  return new Promise((res, rej) => {
+    sourceFor({
+      html,
+      url: `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubTeams?club=${id}`,
+    })
       .find("#content")
       .set({
         title: "#content-row1 h1",
-        teams: osmosis
-          .find(TEAM_ROWS)
-          .set(TEAM_COLUMNS),
+        teams: osmosis.find(TEAM_ROWS).set(TEAM_COLUMNS),
       })
       .error(error("scraping error in /clubTeams, continuing anyway"))
       .data((data) => {
         const name = splitTitle(data.title)[0];
-        models.Club.forge({ id })
-          .save({ name })
-          .catch(() => {
-            models.Club.forge().save({ id, name });
-          });
+        // Caching the club's name is keyed on its id, so there is nothing to
+        // record when the page came from somewhere other than a club request.
+        if (id) {
+          models.Club.forge({ id })
+            .save({ name })
+            .catch(() => {
+              models.Club.forge().save({ id, name });
+            });
+        }
 
         res({
           name,
@@ -507,7 +585,7 @@ function team(query, expressRes) {
         osmosis.set({
           games: osmosis
             .find(
-              "//table[@class='result-set'][count(preceding-sibling::*[1][self::h2][contains(.,'Spieltermine')]) > 0]//tr[position() != 1]",
+              "//table[@class='result-set'][count(preceding-sibling::*[1][self::h2][contains(.,'Spieltermine')]) > 0]//tr[position() != 1]"
             )
             .set({
               date: "td:nth-child(2)",
@@ -517,7 +595,7 @@ function team(query, expressRes) {
               result: "td:nth-child(10)",
               href: "td:nth-child(10) a@href",
             }),
-        }),
+        })
       )
       .error(error("scraping error in /team, continuing anyway"))
       .data((data) => {
@@ -534,7 +612,7 @@ function team(query, expressRes) {
               .map((game) => {
                 const start = moment(
                   `${game.date} ${game.time}`,
-                  "DD.MM.YYYY H:m",
+                  "DD.MM.YYYY H:m"
                 );
                 return {
                   start: start.toDate(),
@@ -542,7 +620,7 @@ function team(query, expressRes) {
                   summary: `${game.home} - ${game.guest} ${league}`,
                   description: game.isHome ? "Heimspiel" : "Auswärtsspiel",
                 };
-              }),
+              })
           );
 
           return cal.serve(expressRes);
@@ -591,7 +669,7 @@ const player1Lens = R.lensProp("player1");
 const matchesLens = R.lensProp("matches");
 const trimPlayers = R.over(
   matchesLens,
-  R.map(R.over(player1Lens, R.toUpper())),
+  R.map(R.over(player1Lens, R.toUpper()))
 );
 
 function game(query) {
@@ -677,12 +755,12 @@ function player(query) {
           }),
         balances: osmosis
           .find(
-            "table.result-set table.result-set tr:last-child > td:last-child",
+            "table.result-set table.result-set tr:last-child > td:last-child"
           )
           .set("balance"),
         singles: osmosis
           .find(
-            "#content-row1 > table.result-set:nth(2) tr:has(td:nth-child(3) a)",
+            "#content-row1 > table.result-set:nth(2) tr:has(td:nth-child(3) a)"
           )
           .set({
             opponent: "td:nth-child(3)",
@@ -692,7 +770,7 @@ function player(query) {
           }),
         doubles: osmosis
           .find(
-            "#content-row1 > table.result-set:nth(3) tr:has(td:nth-child(3) a)",
+            "#content-row1 > table.result-set:nth(3) tr:has(td:nth-child(3) a)"
           )
           .set({
             partner: "td:nth-child(3)",
@@ -730,7 +808,7 @@ function player(query) {
                 team: str.substr(0, str.indexOf(":")).trim(),
                 data: str.substr(str.indexOf(":") + 1).trim(),
               }))
-              .filter((e) => e.team.trim()),
+              .filter((e) => e.team.trim())
           ),
           singles: toArray(data.singles).map(simplifyLinks),
           doubles: toArray(data.doubles).map(simplifyObject("partnerHref")),
@@ -821,7 +899,7 @@ function me(query) {
           }),
         balances: osmosis
           .find(
-            "table.result-set table.result-set tr:last-child > td:last-child",
+            "table.result-set table.result-set tr:last-child > td:last-child"
           )
           .set("balance"),
       })
@@ -844,7 +922,7 @@ function me(query) {
               .map((str) => ({
                 team: str.substr(0, str.indexOf(":")).trim(),
                 data: str.substr(str.indexOf(":") + 1).trim(),
-              })),
+              }))
           ),
         });
       });
@@ -869,21 +947,23 @@ function _search(filters) {
         }),
       })
       .error(R.pipe(error("search"), rej))
-      .data((data) => res(arrayify(data.name).filter(Boolean).map(simplifyLinks)));
+      .data((data) =>
+        res(arrayify(data.name).filter(Boolean).map(simplifyLinks))
+      );
   });
 }
 
 function termToNames(term) {
   if (term.includes(",")) {
-    const parts = term.split(",")
-    return { lastName: parts[0].trim(), firstName: parts[1].trim()}
+    const parts = term.split(",");
+    return { lastName: parts[0].trim(), firstName: parts[1].trim() };
   }
   if (term.includes(" ")) {
-    const [lastName, ...firstNames] = term.split(" ").reverse()
+    const [lastName, ...firstNames] = term.split(" ").reverse();
     return {
       lastName: lastName.trim(),
-      firstName: firstNames.join(" ").trim()
-    }
+      firstName: firstNames.join(" ").trim(),
+    };
   }
   return null;
 }
@@ -894,21 +974,21 @@ async function search(term) {
   if (parts) {
     const results = await _search({
       firstname: parts.firstName,
-      lastname: parts.lastName
+      lastname: parts.lastName,
     });
     if (!results.length) {
       // no results? try the other way around
       return await _search({
         firstname: parts.lastName,
-        lastname: parts.firstName
+        lastname: parts.firstName,
       });
     }
     return results;
   }
 
   const values = await Promise.all([
-    _search({lastname: term}),
-    _search({firstname: term}),
+    _search({ lastname: term }),
+    _search({ firstname: term }),
   ]);
 
   return [...values?.[0], ...values?.[1]];
@@ -924,14 +1004,14 @@ function regionSchedule({ championship, date }) {
       .post(
         resolve(
           host,
-          `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/regionMeetingFilter`,
+          `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/regionMeetingFilter`
         ),
         {
           championship,
           dayOfYear,
           month,
           filterHomeGuestBackup: false,
-        },
+        }
       )
       .set({
         games: osmosis.find("table.result-set > tr:not(:first-child)").set({
@@ -988,9 +1068,9 @@ module.exports = {
   team,
   club,
   clubTeams,
-  parseClubTeams,
+  groupRanking,
+  groupPortraitUrl,
   clubLicenceMembers,
-  parseLicenceMembers,
   game,
   player,
   elo,

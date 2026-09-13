@@ -17,6 +17,7 @@ import LinkRow from "../../components/link-row/";
 import Table from "../../components/table";
 import Tabs from "../../components/tabs";
 import Tab from "../../components/tab";
+import Ranking from "../../components/ranking";
 
 import { API_ORIGIN } from "../../lib/model";
 
@@ -35,12 +36,16 @@ class League extends Component {
 
     tab = clubs.length === 0 ? "schedule" : tab || "table";
 
-    const content =
-      tab === "table" ? (
-        <LeagueTable {...{ clubs, href }} />
-      ) : (
-        <Schedule {...{ chunks }} />
+    let content;
+    if (tab === "ranking" || tab === "doubles") {
+      content = (
+        <Ranking href={href} type={tab === "doubles" ? "doubles" : "singles"} />
       );
+    } else if (tab === "table") {
+      content = <LeagueTable {...{ clubs, href }} />;
+    } else {
+      content = <Schedule {...{ chunks }} />;
+    }
     return (
       <div class={style.profile}>
         <Helmet title={league} />
@@ -50,6 +55,8 @@ class League extends Component {
             <Tabs active={tab} onChange={this.handleChange}>
               <Tab name="table">Tabelle</Tab>
               <Tab name="schedule">Spielplan</Tab>
+              <Tab name="ranking">Rangliste</Tab>
+              <Tab name="doubles">Doppel</Tab>
             </Tabs>
           ) : (
             <span />

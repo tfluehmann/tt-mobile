@@ -88,7 +88,7 @@ app.get("/club/:id", async ({ params }, res) => {
 
 app.get("/club-teams/:id", async ({ params }, res) => {
   try {
-    res.json(await scraper.clubTeams(params.id));
+    res.json(await scraper.clubTeams({ id: params.id }));
   } catch (e) {
     console.error(e);
   }
@@ -96,7 +96,21 @@ app.get("/club-teams/:id", async ({ params }, res) => {
 
 app.get("/club-licences/:id", async ({ params }, res, next) => {
   try {
-    res.json(await scraper.clubLicenceMembers(params.id));
+    res.json(await scraper.clubLicenceMembers({ id: params.id }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get("/group-ranking", async ({ query }, res, next) => {
+  try {
+    res.json(
+      await scraper.groupRanking({
+        url: join("/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/", query.url),
+        type: query.type,
+        displayTyp: query.displayTyp,
+      })
+    );
   } catch (e) {
     next(e);
   }
@@ -104,7 +118,7 @@ app.get("/club-licences/:id", async ({ params }, res, next) => {
 
 app.get("/search/:term", async ({ params }, res) => {
   try {
-    res.json({data: await scraper.search(params.term)});
+    res.json({ data: await scraper.search(params.term) });
   } catch (e) {
     console.error(e);
   }
