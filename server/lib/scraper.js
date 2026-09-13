@@ -367,6 +367,34 @@ function club(id) {
   });
 }
 
+// The row set is shared with the live request as well as the columns. The
+// columns break loudly when upstream moves them; a row selector breaks
+// silently by matching nothing, so it is the half that has to be shared.
+const TEAM_ROWS = "#content-row1 table.result-set tr:has(td:nth-child(2) a)";
+
+const TEAM_COLUMNS = {
+  name: "td:nth-child(1)",
+  league: "td:nth-child(2)",
+  href: "td:nth-child(2) a@href",
+  captain: "td:nth-child(3)",
+  rank: "td:nth-child(4)",
+  points: "td:nth-child(5)",
+};
+
+// Split from the request so the columns above can be tested against a saved
+// page rather than whatever click-tt is serving today.
+const parseClubTeams = (html) =>
+  new Promise((res) => {
+    const teams = [];
+    osmosis
+      .parse(html)
+      .find(TEAM_ROWS)
+      .set(TEAM_COLUMNS)
+      .error(error("parse error in parseClubTeams"))
+      .data((row) => teams.push(simplifyLinks(row)))
+      .done(() => res({ teams }));
+  });
+
 function clubTeams(id) {
   return new Promise((res, rej) => {
     osmosis
@@ -380,15 +408,8 @@ function clubTeams(id) {
       .set({
         title: "#content-row1 h1",
         teams: osmosis
-          .find("#content-row1 table.result-set tr:has(td:nth-child(2) a)")
-          .set({
-            name: "td:nth-child(1)",
-            league: "td:nth-child(2)",
-            href: "td:nth-child(2) a@href",
-            captain: "td:nth-child(3)",
-            rank: "td:nth-child(4)",
-            points: "td:nth-child(5)",
-          }),
+          .find(TEAM_ROWS)
+          .set(TEAM_COLUMNS),
       })
       .error(error("scraping error in /clubTeams, continuing anyway"))
       .data((data) => {
@@ -918,6 +939,7 @@ module.exports = {
   team,
   club,
   clubTeams,
+  parseClubTeams,
   game,
   player,
   elo,
