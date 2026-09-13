@@ -137,8 +137,7 @@ test("typical league", async (t) => {
 test.skip("limited league", async (t) => {
   // Nati A Playoff 1/4 Final
   const response = await scraper.league({
-    url:
-      "http://click-tt.ch/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/groupPage?championship=STT+16%2F17&group=201044",
+    url: "http://click-tt.ch/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/groupPage?championship=STT+16%2F17&group=201044",
   });
   t.deepEqual(response.clubs, []);
   t.equal(typeof response.chunks[0].games[0].home, "string");
@@ -147,11 +146,11 @@ test.skip("limited league", async (t) => {
   t.end();
 });
 
-test("team", async t => {
+test("team", async (t) => {
   // Royal Bern 1. Herren
-  const response = await scraper.team(fixture("team-portrait.html"))
+  const response = await scraper.team(fixture("team-portrait.html"));
   t.equal(typeof response.breadcrumbs[1].name, "string");
-})
+});
 
 const clubHeader = () =>
   fs.readFileSync(path.join(__dirname, "fixtures", "club-header.html"), "utf8");
@@ -200,12 +199,12 @@ test("parseClubProfile treats a whitespace-only element as absent", (t) => {
   t.end();
 });
 
-test("parseClubTeams keeps the captain", async (t) => {
+test("clubTeams keeps the captain", async (t) => {
   const html = fs.readFileSync(
     path.join(__dirname, "fixtures", "club-teams.html"),
-    "utf8",
+    "utf8"
   );
-  const { teams } = await scraper.parseClubTeams(html);
+  const { teams } = await scraper.clubTeams({ html });
 
   // Pins which column each field is read from, against a saved page. That
   // catches an edit to TEAM_COLUMNS here; it cannot catch click-tt moving
@@ -217,12 +216,12 @@ test("parseClubTeams keeps the captain", async (t) => {
   t.end();
 });
 
-test("parseLicenceMembers reads the club roster", async (t) => {
+test("clubLicenceMembers reads the club roster", async (t) => {
   const html = fs.readFileSync(
     path.join(__dirname, "fixtures", "club-licences.html"),
-    "utf8",
+    "utf8"
   );
-  const { players } = await scraper.parseLicenceMembers(html);
+  const { players } = await scraper.clubLicenceMembers({ html });
 
   t.equal(players.length, 5);
   t.equal(players[0].classification, "A19");
@@ -236,12 +235,12 @@ test("parseLicenceMembers reads the club roster", async (t) => {
   t.end();
 });
 
-test("parseLicenceMembers leaves the licence number out", async (t) => {
+test("clubLicenceMembers leaves the licence number out", async (t) => {
   const html = fs.readFileSync(
     path.join(__dirname, "fixtures", "club-licences.html"),
-    "utf8",
+    "utf8"
   );
-  const { players } = await scraper.parseLicenceMembers(html);
+  const { players } = await scraper.clubLicenceMembers({ html });
 
   // A number identifying a person adds nothing to browsing a roster, so the
   // column is not carried over. This asserts the shape rather than the
@@ -250,7 +249,7 @@ test("parseLicenceMembers leaves the licence number out", async (t) => {
   t.deepEqual(
     Object.keys(players[0]).sort(),
     ["classification", "href", "name", "nationality", "series"],
-    "these fields and no others",
+    "these fields and no others"
   );
   t.end();
 });
@@ -269,11 +268,11 @@ test("groupPortraitUrl carries the championship and group over", (t) => {
   t.end();
 });
 
-test("parseGroupRanking reads the singles table", async (t) => {
-  const { players } = await scraper.parseGroupRanking(
-    fixture("group-ranking-singles.html").html,
-    "singles",
-  );
+test("groupRanking reads the singles table", async (t) => {
+  const { players } = await scraper.groupRanking({
+    html: fixture("group-ranking-singles.html").html,
+    type: "singles",
+  });
 
   t.ok(players.length > 0);
   t.equal(players[0].rank, "1");
@@ -283,14 +282,14 @@ test("parseGroupRanking reads the singles table", async (t) => {
   t.end();
 });
 
-test("parseGroupRanking reads the doubles table, which has one column fewer", async (t) => {
+test("groupRanking reads the doubles table, which has one column fewer", async (t) => {
   // The singles table carries an empty column between team and balance and
   // the doubles table does not. Reading doubles with the singles offsets
   // silently empties both score columns.
-  const { players } = await scraper.parseGroupRanking(
-    fixture("group-ranking-doubles.html").html,
-    "doubles",
-  );
+  const { players } = await scraper.groupRanking({
+    html: fixture("group-ranking-doubles.html").html,
+    type: "doubles",
+  });
 
   t.ok(players.length > 0);
   t.equal(players[0].rank, "1");
@@ -299,33 +298,33 @@ test("parseGroupRanking reads the doubles table, which has one column fewer", as
   t.end();
 });
 
-test("parseGroupRanking keeps players who share a rank", async (t) => {
+test("groupRanking keeps players who share a rank", async (t) => {
   // Upstream numbers only the first row of an equal-ranked block and blanks
   // the rest with a non-breaking space. Filtering on a numeric rank threw
   // those rows away, and ties are ordinary in these tables.
-  const { players } = await scraper.parseGroupRanking(
-    fixture("group-ranking-singles.html").html,
-    "singles",
-  );
+  const { players } = await scraper.groupRanking({
+    html: fixture("group-ranking-singles.html").html,
+    type: "singles",
+  });
 
   t.equal(players.length, 3, "every player row survives, tied or not");
   t.deepEqual(
     players.map((p) => p.rank),
     ["1", "1", "1"],
-    "a tied row carries the rank of the block it belongs to",
+    "a tied row carries the rank of the block it belongs to"
   );
   t.ok(
     players.every((p) => /^\d+:\d+$/.test(p.balance)),
-    "every row kept has a balance",
+    "every row kept has a balance"
   );
   t.end();
 });
 
-test("parseGroupRanking drops the header rows", async (t) => {
-  const { players } = await scraper.parseGroupRanking(
-    fixture("group-ranking-singles.html").html,
-    "singles",
-  );
+test("groupRanking drops the header rows", async (t) => {
+  const { players } = await scraper.groupRanking({
+    html: fixture("group-ranking-singles.html").html,
+    type: "singles",
+  });
 
   // "Top" and "Top-Bilanzen" are table headings, not players. They are
   // excluded by having no balance, not by their rank.
