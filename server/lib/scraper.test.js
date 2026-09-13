@@ -152,3 +152,50 @@ test("team", async t => {
   const response = await scraper.team(fixture("team-portrait.html"))
   t.equal(typeof response.breadcrumbs[1].name, "string");
 })
+
+const clubHeader = () =>
+  fs.readFileSync(path.join(__dirname, "fixtures", "club-header.html"), "utf8");
+
+test("parseClubProfile reads the club header", (t) => {
+  const profile = scraper.parseClubProfile(clubHeader());
+
+  t.equal(profile.clubNumber, "60097");
+  t.equal(profile.founded, "1931");
+  t.deepEqual(profile.address, [
+    "TTC Basel",
+    "Schwarzwaldallee 107, 4058 Basel, Schweiz",
+  ]);
+  t.equal(profile.website, "http://www.ttcbasel.ch");
+  t.equal(profile.venues.length, 1);
+  t.equal(profile.venues[0].name, "Spiellokal 1");
+  t.ok(profile.venues[0].directions.startsWith("https://www.google.com/maps"));
+  // Entities must be decoded here: Preact escapes what it renders, so an
+  // "&amp;" surviving this far reaches the browser as "&amp;amp;".
+  t.notok(profile.venues[0].directions.includes("&amp;"));
+  t.ok(profile.venues[0].directions.includes("&destination="));
+  t.end();
+});
+
+test("parseClubProfile leaves the obfuscated email alone", (t) => {
+  // Upstream hides the address behind a JavaScript call so that scrapers
+  // cannot collect it. Nothing returned here should contain any part of it.
+  const dumped = JSON.stringify(scraper.parseClubProfile(clubHeader()));
+
+  t.notok(dumped.includes("encodeEmail"));
+  t.notok(dumped.includes("@"));
+  t.end();
+});
+
+test("parseClubProfile survives a header it cannot read", (t) => {
+  t.equal(scraper.parseClubProfile(undefined), null);
+  t.deepEqual(scraper.parseClubProfile("<div></div>").venues, []);
+  t.end();
+});
+
+test("parseClubProfile treats a whitespace-only element as absent", (t) => {
+  // #content-row1 exists on the club page and holds ten characters of
+  // whitespace. A truthy check alone would let that render an empty heading.
+  t.equal(scraper.parseClubProfile("\n\t    \n\t  "), null);
+  t.equal(scraper.parseClubProfile("   "), null);
+  t.end();
+});

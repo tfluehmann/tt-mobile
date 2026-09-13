@@ -243,17 +243,83 @@ function league(query) {
   });
 }
 
+const stripTags = (html) =>
+  html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const textLines = (html) =>
+  html
+    .split(/<br\s*\/?>/i)
+    .map(stripTags)
+    .filter(Boolean);
+
+// The block between one <h2> and whatever ends it: the next heading, the
+// link list, or the end of the column.
+const headingBlock = (html, heading) =>
+  html.match(
+    new RegExp(`<h2>\\s*${heading}[^<]*</h2>([\\s\\S]*?)(?=<h2|<ul|$)`, "i"),
+  )?.[1] ?? "";
+
+// Club address, venues and founding year from the page header.
+//
+// The email is left out on purpose: upstream hides it behind a JavaScript
+// call so that scrapers cannot collect it, and dropping the <script> here
+// respects that rather than undoing it.
+//
+// The header is malformed markup — an unclosed <p> wraps the address block —
+// so it is taken as HTML and picked apart here rather than addressed with
+// selectors.
+const parseClubProfile = (html) => {
+  // An element that exists but holds only whitespace is still a string, so
+  // the emptiness has to be checked rather than the presence.
+  if (!html || !html.trim()) return null;
+
+  const text = stripTags(html);
+  const contact = headingBlock(html, "Kontaktadresse");
+  const venues = [
+    ...html.matchAll(/<h2>\s*(Spiellokal[^<]*)<\/h2>([\s\S]*?)(?=<h2|<ul|$)/gi),
+  ].map(([, name, body]) => ({
+    name: stripTags(name),
+    address: textLines(body).filter((line) => line !== "Routenplaner"),
+    // The href is read out of the markup, so its entities are still
+    // encoded. Preact escapes what it renders, and an "&amp;" left in here
+    // reaches the browser as "&amp;amp;" and breaks the destination.
+    directions: body
+      .match(/href="(https:\/\/www\.google\.com\/maps[^"]*)"/)?.[1]
+      ?.replace(/&amp;/g, "&"),
+  }));
+
+  return {
+    clubNumber: text.match(/VNr\.:\s*(\d+)/)?.[1],
+    founded: text.match(/Gründungsjahr:\s*(\d{4})/)?.[1],
+    address: textLines(contact).filter((line) => !line.startsWith("www.")),
+    website: contact.match(/href="(https?:\/\/[^"]*)"/)?.[1],
+    venues,
+  };
+};
+
 function club(id) {
   return new Promise((res, rej) => {
     osmosis
       .get(
         resolve(
           host,
-          `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubInfoDisplay?club=${id}`,
+          // Without preferredLanguage click-tt answers in English, so the
+          // headings this page is parsed by would read "Contact Address"
+          // and "Matchlocation 1" instead. The app is German; asking for
+          // German keeps the page and the parser in step.
+          `/cgi-bin/WebObjects/nuLigaTTCH.woa/wa/clubInfoDisplay?club=${id}&preferredLanguage=German`,
         ),
       )
       .find("#content")
       .set({
+        // The club header is in row 2. Row 1 exists on this page but is
+        // empty, and reads as ten characters of whitespace.
+        profileHtml: "#content-row2:html",
         lastMatches: osmosis
           .find(
             "//table[@class='result-set'][count(preceding-sibling::*[1][self::h2][contains(.,'Rückschau')]) > 0]//tr",
@@ -282,6 +348,7 @@ function club(id) {
       .error(error("scraping error in /club, continuing anyway"))
       .data((data) => {
         res({
+          profile: parseClubProfile(data.profileHtml),
           lastMatches: asChunks(
             toArray(data.lastMatches)
               .filter((m) => m.time)
@@ -844,6 +911,7 @@ function regionSchedule({ championship, date }) {
 
 module.exports = {
   arrayify,
+  parseClubProfile,
   assocHistory,
   assoc,
   league,
